@@ -9,20 +9,7 @@
   <body>
     <main class="container">
       <h1>PM Insights Hub</h1>
-      <p>Portal para PM com ingestão de arquivos, RAG, transcrição, auditoria e KPIs.</p>
-
-      <section>
-        <h2>Acesso</h2>
-        <input id="username" value="admin" placeholder="Usuário" />
-        <input id="password" type="password" placeholder="Senha" />
-        <button id="login-btn">Entrar</button>
-        <p id="auth-status"></p>
-      </section>
-
-      <section>
-        <h2>Configuração de IA</h2>
-        <input id="api-key" type="password" placeholder="OPENAI_API_KEY (opcional, só no navegador)" />
-      </section>
+      <p>Suba artefatos do projeto e gere insights com IA.</p>
 
       <section>
         <h2>Upload de atividades</h2>
@@ -35,19 +22,6 @@
       </section>
 
       <section>
-        <h2>Pipeline de transcrição (áudio/vídeo)</h2>
-        <input id="transcribe-artifact-id" type="number" placeholder="ID do artefato" />
-        <button id="transcribe-btn">Transcrever artefato</button>
-      </section>
-
-      <section>
-        <h2>RAG Search</h2>
-        <textarea id="rag-query" placeholder="Buscar evidências semânticas no acervo"></textarea>
-        <button id="rag-btn">Buscar contexto</button>
-        <pre id="rag-output"></pre>
-      </section>
-
-      <section>
         <h2>Perguntas em linguagem natural</h2>
         <textarea id="question" placeholder="Ex: Quais riscos estão mais críticos?"></textarea>
         <button id="ask-btn">Perguntar</button>
@@ -57,18 +31,6 @@
         <h2>Geração automática</h2>
         <button id="insights-btn">Gerar insights</button>
         <button id="report-btn">Gerar relatório executivo</button>
-      </section>
-
-      <section>
-        <h2>Dashboard de KPIs</h2>
-        <button id="dashboard-btn">Atualizar KPIs</button>
-        <pre id="kpi-output"></pre>
-      </section>
-
-      <section>
-        <h2>Auditoria</h2>
-        <button id="audit-btn">Carregar trilha</button>
-        <pre id="audit-output"></pre>
       </section>
 
       <section>

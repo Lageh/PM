@@ -10,7 +10,7 @@ body {
 }
 
 .container {
-  max-width: 980px;
+  max-width: 900px;
   margin: 0 auto;
   padding: 24px;
 }
@@ -34,7 +34,6 @@ button {
   border: 1px solid #374151;
   background: #0f172a;
   color: #e2e8f0;
-  box-sizing: border-box;
 }
 
 button {
@@ -47,6 +46,5 @@ pre {
   background: #020617;
   padding: 12px;
   border-radius: 8px;
-  min-height: 80px;
-  overflow: auto;
+  min-height: 120px;
 }
