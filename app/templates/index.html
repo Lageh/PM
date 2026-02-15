@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PM Insights Hub</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>PM Insights Hub</h1>
+      <p>Suba artefatos do projeto, conecte sua IA e gere insights de gestão.</p>
+
+      <section>
+        <h2>Configuração de IA</h2>
+        <input id="api-key" type="password" placeholder="Cole sua OPENAI_API_KEY (não é salva no servidor)" />
+        <small>A chave fica apenas no navegador (localStorage) e segue junto nas requisições de análise.</small>
+      </section>
+
+      <section>
+        <h2>Upload de atividades</h2>
+        <form id="upload-form">
+          <input type="file" id="file" required />
+          <textarea id="notes" placeholder="Notas rápidas sobre este artefato"></textarea>
+          <button type="submit">Enviar</button>
+        </form>
+        <p id="upload-status"></p>
+      </section>
+
+      <section>
+        <h2>Perguntas em linguagem natural</h2>
+        <textarea id="question" placeholder="Ex: Quais riscos estão mais críticos?"></textarea>
+        <button id="ask-btn">Perguntar</button>
+      </section>
+
+      <section>
+        <h2>Geração automática</h2>
+        <button id="insights-btn">Gerar insights</button>
+        <button id="report-btn">Gerar relatório executivo</button>
+      </section>
+
+      <section>
+        <h2>Resultado</h2>
+        <pre id="output"></pre>
+      </section>
+
+      <section>
+        <h2>Artefatos enviados</h2>
+        <ul id="artifact-list"></ul>
+      </section>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
