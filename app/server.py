@@ -24,7 +24,7 @@ def init_db() -> None:
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             """
-            CREATE TABLE IF NOT EXISTS artifacts (
+      CREATE TABLE IF NOT EXISTS artifacts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 filename TEXT NOT NULL,
                 content_type TEXT,
