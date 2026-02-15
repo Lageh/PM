@@ -4,7 +4,7 @@ Aplicação web para gerentes de projeto centralizarem atividades (reuniões gra
 
 ## Funcionalidades
 - Upload de artefatos de projeto.
-- Catálogo local dos arquivos com metadados (SQLite).
+- Catálogo local dos arquivos com metadados em arquivos JSON no diretório temporário do sistema.
 - Perguntas em linguagem natural.
 - Geração automática de insights.
 - Geração de relatório executivo.
@@ -16,6 +16,8 @@ python app/server.py
 ```
 
 Abra: `http://localhost:8000`
+
+Dados locais são armazenados em: `<temp>/pm-insights-hub` (uploads + metadata).
 
 ## Integração com IA
 Configure variáveis de ambiente:

@@ -1,85 +1,89 @@
 import cgi
 import json
 import os
-import sqlite3
+import tempfile
 import threading
+import time
 from datetime import datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib import request
+from secrets import token_hex
+from urllib import error, request
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
-UPLOAD_DIR = BASE_DIR / "uploads"
-DB_PATH = BASE_DIR / "project_manager.db"
+DATA_DIR = Path(tempfile.gettempdir()) / "pm-insights-hub"
+UPLOAD_DIR = DATA_DIR / "uploads"
+METADATA_DIR = DATA_DIR / "metadata"
 HOST = "0.0.0.0"
 PORT = int(os.getenv("PORT", "8000"))
 LOCK = threading.Lock()
 
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+def get_access_host() -> str:
+    if HOST in {"0.0.0.0", "::"}:
+        return "localhost"
+    return HOST
+
+
+def get_access_url() -> str:
+    return f"http://{get_access_host()}:{PORT}"
+
+def init_storage() -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    METADATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def init_db() -> None:
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.execute(
-            """
-      CREATE TABLE IF NOT EXISTS artifacts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                filename TEXT NOT NULL,
-                content_type TEXT,
-                size_bytes INTEGER NOT NULL,
-                notes TEXT,
-                created_at TEXT NOT NULL
-            )
-            """
-        )
+    # Backward-compatible name used by app/main.py.
+    init_storage()
+
+
+def _read_metadata(path: Path) -> dict | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
 
 
 def list_artifacts() -> list[dict]:
-    with sqlite3.connect(DB_PATH) as conn:
-        rows = conn.execute(
-            "SELECT id, filename, content_type, size_bytes, notes, created_at FROM artifacts ORDER BY id DESC"
-        ).fetchall()
-    return [
-        {
-            "id": row[0],
-            "filename": row[1],
-            "content_type": row[2],
-            "size_bytes": row[3],
-            "notes": row[4],
-            "created_at": row[5],
-        }
-        for row in rows
-    ]
+    init_storage()
+    artifacts: list[dict] = []
+    for metadata_file in METADATA_DIR.glob("*.json"):
+        artifact = _read_metadata(metadata_file)
+        if artifact:
+            artifacts.append(artifact)
+    artifacts.sort(key=lambda item: item.get("created_at", ""), reverse=True)
+    return artifacts
 
 
 def save_artifact(filename: str, content_type: str, content: bytes, notes: str | None) -> dict:
-    safe_name = Path(filename).name
-    file_path = UPLOAD_DIR / safe_name
-    with open(file_path, "wb") as f:
-        f.write(content)
+    init_storage()
+    safe_name = Path(filename or "uploaded_file").name
+    artifact_id = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{token_hex(4)}"
+    stored_name = f"{artifact_id}__{safe_name}"
+    file_path = UPLOAD_DIR / stored_name
 
     artifact = {
+        "id": artifact_id,
         "filename": safe_name,
+        "stored_filename": stored_name,
         "content_type": content_type,
         "size_bytes": len(content),
-        "notes": notes,
-        "created_at": datetime.utcnow().isoformat(),
+        "notes": notes or "",
+        "created_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
     }
 
     with LOCK:
-        with sqlite3.connect(DB_PATH) as conn:
-            conn.execute(
-                "INSERT INTO artifacts (filename, content_type, size_bytes, notes, created_at) VALUES (?, ?, ?, ?, ?)",
-                (
-                    artifact["filename"],
-                    artifact["content_type"],
-                    artifact["size_bytes"],
-                    artifact["notes"],
-                    artifact["created_at"],
-                ),
-            )
+        file_path.write_bytes(content)
+        metadata_path = METADATA_DIR / f"{artifact_id}.json"
+        metadata_path.write_text(
+            json.dumps(artifact, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
 
     return artifact
 
@@ -135,9 +139,32 @@ def call_llm(system_prompt: str, user_prompt: str) -> str:
         method="POST",
     )
 
-    with request.urlopen(req, timeout=45) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-    return data["choices"][0]["message"]["content"]
+    max_attempts = 3
+    for attempt in range(max_attempts):
+        try:
+            with request.urlopen(req, timeout=45) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            return data["choices"][0]["message"]["content"]
+        except error.HTTPError as exc:
+            if exc.code == 429 and attempt < max_attempts - 1:
+                retry_after = exc.headers.get("Retry-After")
+                wait_seconds = int(retry_after) if retry_after and retry_after.isdigit() else 2 ** attempt
+                time.sleep(wait_seconds)
+                continue
+            if exc.code == 429:
+                return (
+                    "Limite de requisições/crédito atingido na API (HTTP 429). "
+                    "Aguarde e tente novamente, ou revise o billing/limites do projeto OpenAI."
+                )
+            return (
+                "Falha ao chamar a API de IA. Verifique OPENAI_API_KEY, modelo e conectividade.\n\n"
+                f"Detalhe técnico: HTTP {exc.code}"
+            )
+        except Exception as exc:
+            return (
+                "Falha ao chamar a API de IA. Verifique OPENAI_API_KEY, modelo e conectividade.\n\n"
+                f"Detalhe técnico: {exc}"
+            )
 
 
 class PMHandler(BaseHTTPRequestHandler):
@@ -232,7 +259,7 @@ class PMHandler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    init_db()
+    init_storage()
     server = ThreadingHTTPServer((HOST, PORT), PMHandler)
-    print(f"Servidor rodando em http://{HOST}:{PORT}")
+    print(f"Servidor rodando em {get_access_url()}")
     server.serve_forever()

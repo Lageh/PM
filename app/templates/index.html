@@ -7,40 +7,66 @@
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
-    <main class="container">
-      <h1>PM Insights Hub</h1>
-      <p>Suba artefatos do projeto e gere insights com IA.</p>
+    <div class="bg-shape bg-shape-one"></div>
+    <div class="bg-shape bg-shape-two"></div>
+    <main class="shell">
+      <header class="hero reveal">
+        <p class="eyebrow">PM INSIGHTS HUB</p>
+        <h1>Visibilidade bonita e acionável para o seu projeto.</h1>
+        <p class="hero-copy">
+          Faça upload de artefatos, converse com IA e gere relatórios executivos em um workspace elegante.
+        </p>
+      </header>
 
-      <section>
-        <h2>Upload de atividades</h2>
-        <form id="upload-form">
+      <section class="panel reveal">
+        <div class="panel-head">
+          <h2>Upload de artefato</h2>
+          <p>Arquivos e metadados são persistidos em pasta temporária local.</p>
+        </div>
+        <form id="upload-form" class="stack">
           <input type="file" id="file" required />
           <textarea id="notes" placeholder="Notas rápidas sobre este artefato"></textarea>
-          <button type="submit">Enviar</button>
+          <button type="submit">Enviar arquivo</button>
         </form>
-        <p id="upload-status"></p>
+        <p id="upload-status" class="status"></p>
       </section>
 
-      <section>
-        <h2>Perguntas em linguagem natural</h2>
-        <textarea id="question" placeholder="Ex: Quais riscos estão mais críticos?"></textarea>
-        <button id="ask-btn">Perguntar</button>
+      <section class="grid">
+        <article class="panel reveal">
+          <div class="panel-head">
+            <h2>Pergunta rápida</h2>
+            <p>Use linguagem natural para extrair contexto e riscos.</p>
+          </div>
+          <textarea id="question" placeholder="Ex: Quais riscos estão mais críticos neste momento?"></textarea>
+          <button id="ask-btn">Perguntar</button>
+        </article>
+
+        <article class="panel reveal">
+          <div class="panel-head">
+            <h2>Automação</h2>
+            <p>Gere leitura executiva com um clique.</p>
+          </div>
+          <div class="stack">
+            <button id="insights-btn">Gerar insights</button>
+            <button id="report-btn" class="secondary">Gerar relatório executivo</button>
+          </div>
+        </article>
       </section>
 
-      <section>
-        <h2>Geração automática</h2>
-        <button id="insights-btn">Gerar insights</button>
-        <button id="report-btn">Gerar relatório executivo</button>
+      <section class="panel reveal">
+        <div class="panel-head">
+          <h2>Resultado da IA</h2>
+          <p>Saída consolidada para análise e compartilhamento.</p>
+        </div>
+        <pre id="output">Nenhuma solicitação enviada ainda.</pre>
       </section>
 
-      <section>
-        <h2>Resultado</h2>
-        <pre id="output"></pre>
-      </section>
-
-      <section>
-        <h2>Artefatos enviados</h2>
-        <ul id="artifact-list"></ul>
+      <section class="panel reveal">
+        <div class="panel-head">
+          <h2>Artefatos carregados</h2>
+          <p>Histórico recente dos arquivos disponíveis no contexto.</p>
+        </div>
+        <ul id="artifact-list" class="artifact-list"></ul>
       </section>
     </main>
     <script src="/static/app.js"></script>

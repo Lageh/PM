@@ -1,1 +1,2 @@
-# Sem dependências externas: aplicação usa apenas biblioteca padrão do Python.
+# Third-party dependency required only for Python 3.13+ (cgi was removed from stdlib).
+legacy-cgi; python_version >= "3.13"
