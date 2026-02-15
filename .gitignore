@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+app/uploads/*
+!app/uploads/.gitkeep
+app/project_manager.db
