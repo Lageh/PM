@@ -7,7 +7,7 @@ from datetime import datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib import error, request
+from urllib import request
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
@@ -30,21 +30,16 @@ def init_db() -> None:
                 content_type TEXT,
                 size_bytes INTEGER NOT NULL,
                 notes TEXT,
-                extracted_text TEXT,
                 created_at TEXT NOT NULL
             )
             """
         )
 
-        existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(artifacts)").fetchall()}
-        if "extracted_text" not in existing_cols:
-            conn.execute("ALTER TABLE artifacts ADD COLUMN extracted_text TEXT")
-
 
 def list_artifacts() -> list[dict]:
     with sqlite3.connect(DB_PATH) as conn:
         rows = conn.execute(
-            "SELECT id, filename, content_type, size_bytes, notes, extracted_text, created_at FROM artifacts ORDER BY id DESC"
+            "SELECT id, filename, content_type, size_bytes, notes, created_at FROM artifacts ORDER BY id DESC"
         ).fetchall()
     return [
         {
@@ -53,56 +48,35 @@ def list_artifacts() -> list[dict]:
             "content_type": row[2],
             "size_bytes": row[3],
             "notes": row[4],
-            "extracted_text": row[5] or "",
-            "created_at": row[6],
+            "created_at": row[5],
         }
         for row in rows
     ]
 
 
-def extract_text(filename: str, content_type: str | None, content: bytes) -> str:
-    text_like_extensions = {".txt", ".md", ".csv", ".log", ".json"}
-    suffix = Path(filename).suffix.lower()
-    looks_like_text = suffix in text_like_extensions or (content_type or "").startswith("text/")
-
-    if not looks_like_text:
-        return ""
-
-    try:
-        return content.decode("utf-8")
-    except UnicodeDecodeError:
-        try:
-            return content.decode("latin-1")
-        except UnicodeDecodeError:
-            return ""
-
-
-def save_artifact(filename: str, content_type: str | None, content: bytes, notes: str | None) -> dict:
+def save_artifact(filename: str, content_type: str, content: bytes, notes: str | None) -> dict:
     safe_name = Path(filename).name
     file_path = UPLOAD_DIR / safe_name
     with open(file_path, "wb") as f:
         f.write(content)
 
-    extracted_text = extract_text(safe_name, content_type, content)
     artifact = {
         "filename": safe_name,
         "content_type": content_type,
         "size_bytes": len(content),
         "notes": notes,
-        "extracted_text": extracted_text,
         "created_at": datetime.utcnow().isoformat(),
     }
 
     with LOCK:
         with sqlite3.connect(DB_PATH) as conn:
             conn.execute(
-                "INSERT INTO artifacts (filename, content_type, size_bytes, notes, extracted_text, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO artifacts (filename, content_type, size_bytes, notes, created_at) VALUES (?, ?, ?, ?, ?)",
                 (
                     artifact["filename"],
                     artifact["content_type"],
                     artifact["size_bytes"],
                     artifact["notes"],
-                    artifact["extracted_text"],
                     artifact["created_at"],
                 ),
             )
@@ -114,29 +88,29 @@ def build_context() -> str:
     artifacts = list_artifacts()
     if not artifacts:
         return "Ainda não existem artefatos carregados."
-
-    context_items: list[dict] = []
-    for artifact in artifacts[:20]:
-        context_items.append(
+    return json.dumps(
+        [
             {
-                "filename": artifact["filename"],
-                "notes": artifact["notes"],
-                "created_at": artifact["created_at"],
-                "text_excerpt": artifact["extracted_text"][:2500],
+                "filename": a["filename"],
+                "size_bytes": a["size_bytes"],
+                "notes": a["notes"],
+                "created_at": a["created_at"],
             }
-        )
+            for a in artifacts[:20]
+        ],
+        ensure_ascii=False,
+        indent=2,
+    )
 
-    return json.dumps(context_items, ensure_ascii=False, indent=2)
 
-
-def call_llm(system_prompt: str, user_prompt: str, api_key_override: str | None = None) -> str:
-    api_key = (api_key_override or "").strip() or os.getenv("OPENAI_API_KEY")
+def call_llm(system_prompt: str, user_prompt: str) -> str:
+    api_key = os.getenv("OPENAI_API_KEY")
     model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
 
     if not api_key:
         return (
-            "OPENAI_API_KEY não configurada. Informe a chave no campo da interface ou configure no ambiente.\n\n"
+            "OPENAI_API_KEY não configurada. Configure para receber respostas reais da IA.\n\n"
             f"Resumo local: {user_prompt[:500]}"
         )
 
@@ -161,15 +135,9 @@ def call_llm(system_prompt: str, user_prompt: str, api_key_override: str | None 
         method="POST",
     )
 
-    try:
-        with request.urlopen(req, timeout=60) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        return data["choices"][0]["message"]["content"]
-    except error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="ignore")
-        return f"Erro no serviço de IA (HTTP {exc.code}): {detail[:800]}"
-    except Exception as exc:  # noqa: BLE001
-        return f"Falha ao chamar serviço de IA: {str(exc)}"
+    with request.urlopen(req, timeout=45) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    return data["choices"][0]["message"]["content"]
 
 
 class PMHandler(BaseHTTPRequestHandler):
@@ -235,42 +203,27 @@ class PMHandler(BaseHTTPRequestHandler):
         if self.path in {"/api/ask", "/api/insights", "/api/report"}:
             length = int(self.headers.get("Content-Length", "0"))
             payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
-            api_key = payload.get("api_key")
             context = build_context()
 
             if self.path == "/api/ask":
                 text = call_llm(
-                    "Você é um PMO Assistant. Responda em português, com objetividade e recomendações acionáveis.",
-                    (
-                        "Com base no contexto abaixo, responda de forma estruturada com: resumo, riscos, ações e próximos passos.\n\n"
-                        f"Contexto dos artefatos:\n{context}\n\nPergunta:\n{payload.get('question', '')}"
-                    ),
-                    api_key_override=api_key,
+                    "Você é um PMO Assistant. Responda em português, objetivamente, com recomendações acionáveis.",
+                    f"Contexto dos artefatos:\n{context}\n\nPergunta:\n{payload.get('question', '')}",
                 )
                 self._send_json({"answer": text})
                 return
 
             if self.path == "/api/insights":
                 text = call_llm(
-                    "Você é especialista em gestão de projetos. Entregue riscos, oportunidades, dependências, bloqueios e próximos passos.",
-                    (
-                        f"Objetivo: {payload.get('objective', 'Identificar riscos e gargalos.')}\n\n"
-                        "Entregue seções: Riscos críticos, Bloqueios, Oportunidades, Plano de ação (7 dias), Perguntas em aberto.\n\n"
-                        f"Contexto:\n{context}"
-                    ),
-                    api_key_override=api_key,
+                    "Você é especialista em gestão de projetos. Entregue riscos, oportunidades, dependências e próximos passos.",
+                    f"Objetivo: {payload.get('objective', 'Identificar riscos e gargalos.')}\n\nContexto:\n{context}",
                 )
                 self._send_json({"insights": text})
                 return
 
             text = call_llm(
-                "Você produz relatório executivo para liderança com linguagem profissional e objetiva.",
-                (
-                    f"Tipo de relatório: {payload.get('report_type', 'Status semanal')}\n\n"
-                    "Estruture com: Status geral, Principais entregas, Riscos/impactos, Cronograma, Decisões necessárias, Próximos passos.\n\n"
-                    f"Contexto:\n{context}"
-                ),
-                api_key_override=api_key,
+                "Você produz relatório executivo de projetos para liderança.",
+                f"Tipo de relatório: {payload.get('report_type', 'Status semanal')}\n\nContexto:\n{context}",
             )
             self._send_json({"report": text})
             return

@@ -2,23 +2,6 @@ const uploadForm = document.getElementById('upload-form');
 const output = document.getElementById('output');
 const artifactList = document.getElementById('artifact-list');
 const uploadStatus = document.getElementById('upload-status');
-const apiKeyInput = document.getElementById('api-key');
-
-const LOCAL_KEY_NAME = 'pm-insights-openai-key';
-
-function getApiKey() {
-  return (apiKeyInput?.value || '').trim();
-}
-
-function saveApiKey() {
-  if (!apiKeyInput) return;
-  localStorage.setItem(LOCAL_KEY_NAME, apiKeyInput.value || '');
-}
-
-if (apiKeyInput) {
-  apiKeyInput.value = localStorage.getItem(LOCAL_KEY_NAME) || '';
-  apiKeyInput.addEventListener('input', saveApiKey);
-}
 
 async function refreshArtifacts() {
   const response = await fetch('/api/artifacts');
@@ -27,8 +10,7 @@ async function refreshArtifacts() {
 
   for (const artifact of data.artifacts) {
     const li = document.createElement('li');
-    const hasText = artifact.extracted_text && artifact.extracted_text.length > 0;
-    li.textContent = `${artifact.filename} (${Math.round(artifact.size_bytes / 1024)} KB) - ${artifact.created_at}${hasText ? ' • texto indexado' : ''}`;
+    li.textContent = `${artifact.filename} (${Math.round(artifact.size_bytes / 1024)} KB) - ${artifact.created_at}`;
     artifactList.appendChild(li);
   }
 }
@@ -57,7 +39,7 @@ async function postJSON(url, payload) {
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...payload, api_key: getApiKey() }),
+    body: JSON.stringify(payload),
   });
   const data = await response.json();
   if (data.answer) output.textContent = data.answer;
